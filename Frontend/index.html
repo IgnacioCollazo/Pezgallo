@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PezGallo 🦈</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <!-- PANTALLA: Login / Registro -->
+  <div id="pantalla-auth" class="pantalla activa">
+    <div class="auth-box">
+      <h1>🦈 PezGallo</h1>
+      <p class="subtitulo">Mariscos frescos, sin esperas</p>
+
+      <div class="tabs">
+        <button class="tab activo" onclick="mostrarTab('login')">Iniciar sesión</button>
+        <button class="tab" onclick="mostrarTab('registro')">Registrarse</button>
+      </div>
+
+      <div id="form-login">
+        <input type="email" id="login-correo" placeholder="Correo electrónico" />
+        <input type="password" id="login-password" placeholder="Contraseña" />
+        <button class="btn-primary" onclick="login()">Entrar</button>
+      </div>
+
+      <div id="form-registro" style="display:none">
+        <input type="text" id="reg-nombre" placeholder="Tu nombre" />
+        <input type="email" id="reg-correo" placeholder="Correo electrónico" />
+        <input type="password" id="reg-password" placeholder="Contraseña" />
+        <button class="btn-primary" onclick="registro()">Crear cuenta</button>
+      </div>
+
+      <p id="auth-error" class="error"></p>
+    </div>
+  </div>
+
+  <!-- PANTALLA: Principal -->
+  <div id="pantalla-principal" class="pantalla">
+
+    <!-- Header -->
+    <header>
+      <div class="header-left">
+        <h2>🦈 PezGallo</h2>
+      </div>
+      <div class="header-right">
+        <span id="saludo-usuario"></span>
+        <button class="btn-secondary" onclick="cerrarSesion()">Salir</button>
+      </div>
+    </header>
+
+    <!-- Navegación -->
+    <nav>
+      <button class="nav-btn activo" onclick="mostrarSeccion('mapa')">🗺️ Mesas</button>
+      <button class="nav-btn" onclick="mostrarSeccion('menu')">🍤 Menú</button>
+      <button class="nav-btn" onclick="mostrarSeccion('mis-pedidos')">📋 Mis Pedidos</button>
+    </nav>
+
+    <!-- SECCIÓN: Mapa de Mesas -->
+    <section id="seccion-mapa" class="seccion activa">
+      <h3>Selecciona tu mesa</h3>
+      <div class="leyenda">
+        <span class="badge libre">● Libre</span>
+        <span class="badge ocupada">● Ocupada</span>
+        <span class="badge reservada">● Reservada</span>
+        <span class="badge esperando">● Esperando pedido</span>
+      </div>
+      <div id="mapa-mesas" class="mapa-grid"></div>
+    </section>
+
+    <!-- SECCIÓN: Menú -->
+    <section id="seccion-menu" class="seccion">
+      <h3>Nuestro Menú</h3>
+      <div id="categorias-menu"></div>
+      <div class="carrito-bar" id="carrito-bar" style="display:none">
+        <span id="carrito-count">0 items</span>
+        <button class="btn-primary" onclick="mostrarCarrito()">Ver pedido 🛒</button>
+      </div>
+    </section>
+
+    <!-- SECCIÓN: Mis Pedidos -->
+    <section id="seccion-mis-pedidos" class="seccion">
+      <h3>Mis Pedidos</h3>
+      <div id="lista-pedidos"></div>
+    </section>
+
+  </div>
+
+  <!-- MODAL: Reservar Mesa -->
+  <div id="modal-reserva" class="modal" style="display:none">
+    <div class="modal-content">
+      <h3>Reservar Mesa <span id="modal-mesa-num"></span></h3>
+      <label>¿Cuántas personas?</label>
+      <input type="number" id="reserva-personas" min="1" max="6" value="2" />
+      <label>Fecha y hora</label>
+      <input type="datetime-local" id="reserva-fecha" />
+      <div class="modal-acciones">
+        <button class="btn-primary" onclick="confirmarReserva()">Confirmar</button>
+        <button class="btn-secondary" onclick="cerrarModal('modal-reserva')">Cancelar</button>
+      </div>
+      <p id="reserva-error" class="error"></p>
+    </div>
+  </div>
+
+  <!-- MODAL: Carrito -->
+  <div id="modal-carrito" class="modal" style="display:none">
+    <div class="modal-content">
+      <h3>Tu Pedido 🛒</h3>
+      <div id="carrito-items"></div>
+      <p><strong>Total: $<span id="carrito-total">0</span></strong></p>
+      <label>Mesa (opcional)</label>
+      <select id="carrito-mesa">
+        <option value="">Sin mesa asignada</option>
+      </select>
+      <div class="modal-acciones">
+        <button class="btn-primary" onclick="enviarPedido()">Hacer pedido</button>
+        <button class="btn-secondary" onclick="cerrarModal('modal-carrito')">Cancelar</button>
+      </div>
+      <p id="pedido-error" class="error"></p>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
