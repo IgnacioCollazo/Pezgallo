@@ -22,6 +22,7 @@ class Usuario(Base):
     nombre = Column(String, nullable=False)
     correo = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
+    rol = Column(String, default="cliente")
     fecha_registro = Column(DateTime, default=datetime.datetime.utcnow)
     reservaciones = relationship("Reservacion", back_populates="usuario")
     pedidos = relationship("Pedido", back_populates="usuario")

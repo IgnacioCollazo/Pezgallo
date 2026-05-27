@@ -1,11 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
-from routers import usuarios, mesas, reservaciones, pedidos, menu, recomendaciones
+from routers import usuarios, mesas, reservaciones, pedidos, menu, recomendaciones, admin
 
+# Crea todas las tablas si no existen
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="PezGallo API", version="1.0.0")
+app = FastAPI(
+    title="PezGallo API",
+    version="1.0.0",
+    description="API REST completa para el restaurante PezGallo 🦈"
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,7 +26,8 @@ app.include_router(reservaciones.router)
 app.include_router(pedidos.router)
 app.include_router(menu.router)
 app.include_router(recomendaciones.router)
+app.include_router(admin.router)
 
-@app.get("/")
+@app.get("/", tags=["Root"])
 def root():
-    return {"mensaje": "🦈 Bienvenido a PezGallo API"}
+    return {"mensaje": "🦈 Bienvenido a PezGallo API", "docs": "/docs", "version": "1.0.0"}

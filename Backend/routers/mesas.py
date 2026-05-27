@@ -1,129 +1,97 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from database import get_db
+from auth import get_usuario_actual
+import models, schemas
 from typing import List
-import models, schemas, auth
 
-router = APIRouter(prefix="/mesas", tags=["mesas"])
+router = APIRouter(prefix="/mesas", tags=["Mesas"])
 
+# ─── CREATE (admin) ───────────────────────────────────────────────────────────
+@router.post("/", response_model=schemas.MesaOut, status_code=201)
+def crear_mesa(
+    data: schemas.MesaCreate,
+    db: Session = Depends(get_db),
+    usuario_actual: models.Usuario = Depends(get_usuario_actual)
+):
+    if usuario_actual.rol != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden crear mesas")
+    existente = db.query(models.Mesa).filter(models.Mesa.numero == data.numero).first()
+    if existente:
+        raise HTTPException(status_code=400, detail=f"Ya existe la mesa número {data.numero}")
+    mesa = models.Mesa(**data.model_dump())
+    db.add(mesa)
+    db.commit()
+    db.refresh(mesa)
+    return mesa
+
+# ─── READ ALL (público) ───────────────────────────────────────────────────────
 @router.get("/", response_model=List[schemas.MesaOut])
 def listar_mesas(db: Session = Depends(get_db)):
-    return db.query(models.Mesa).all()
+    return db.query(models.Mesa).order_by(models.Mesa.numero).all()
 
+# ─── READ ONE ────────────────────────────────────────────────────────────────
 @router.get("/{mesa_id}", response_model=schemas.MesaOut)
-def detalle_mesa(mesa_id: int, db: Session = Depends(get_db)):
+def obtener_mesa(mesa_id: int, db: Session = Depends(get_db)):
     mesa = db.query(models.Mesa).filter(models.Mesa.id == mesa_id).first()
     if not mesa:
         raise HTTPException(status_code=404, detail="Mesa no encontrada")
     return mesa
 
-@router.post("/sugerir")
-def sugerir_mesa(num_personas: int, db: Session = Depends(get_db)):
-    """
-    Lógica inteligente de asignación:
-    1. Mesa libre con capacidad exacta
-    2. Mesa libre con capacidad inmediata superior
-    3. Descomponer mesa grande si hay tablones disponibles
-    4. Combinar tablón libre de mesa ocupada parcialmente
-    """
-
-    # 1 y 2: Mesa libre con capacidad suficiente
-    mesa = db.query(models.Mesa).filter(
-        models.Mesa.estado == models.EstadoMesa.libre,
-        models.Mesa.capacidad >= num_personas
-    ).order_by(models.Mesa.capacidad).first()
-
-    if mesa:
-        return {
-            "mesa_id": mesa.id,
-            "numero": mesa.numero,
-            "capacidad": mesa.capacidad,
-            "accion": "asignar_directo",
-            "mensaje": f"Mesa {mesa.numero} disponible para {num_personas} personas"
-        }
-
-    # 3: Descomponer mesa grande (6 personas = 2 tablones)
-    # Si necesitan 4 o menos, usar 1 tablón de mesa grande libre
-    if num_personas <= 4:
-        mesa_grande = db.query(models.Mesa).filter(
-            models.Mesa.es_componible == True,
-            models.Mesa.tablones_disponibles == 2,
-            models.Mesa.estado == models.EstadoMesa.libre
-        ).first()
-
-        if mesa_grande:
-            return {
-                "mesa_id": mesa_grande.id,
-                "numero": mesa_grande.numero,
-                "capacidad": 4,
-                "accion": "descomponer_usar_un_tablon",
-                "tablones_a_usar": 1,
-                "mensaje": f"Se usará 1 tablón de la mesa {mesa_grande.numero} (capacidad para {num_personas} personas)"
-            }
-
-    # 4: Escenario especial — grupo de 5 con mesa de 4 disponible + tablón suelto
-    # Mesa grande parcialmente ocupada (3 personas, quedan 3 sillas = 1 tablón libre)
-    if num_personas == 5:
-        mesa_4 = db.query(models.Mesa).filter(
-            models.Mesa.estado == models.EstadoMesa.libre,
-            models.Mesa.capacidad == 4
-        ).first()
-
-        mesa_tablon = db.query(models.Mesa).filter(
-            models.Mesa.es_componible == True,
-            models.Mesa.tablones_disponibles >= 1,
-            models.Mesa.estado != models.EstadoMesa.libre
-        ).first()
-
-        if mesa_4 and mesa_tablon:
-            return {
-                "mesa_id": mesa_4.id,
-                "numero": mesa_4.numero,
-                "capacidad": 5,
-                "accion": "combinar_mesa_tablon",
-                "mesa_extra_id": mesa_tablon.id,
-                "mensaje": f"Combinar mesa {mesa_4.numero} + 1 tablón de mesa {mesa_tablon.numero} para acomodar {num_personas} personas"
-            }
-
-    return {
-        "mensaje": "No hay mesas disponibles en este momento",
-        "accion": "ninguna"
-    }
-
-@router.patch("/{mesa_id}/estado")
-def cambiar_estado(
+# ─── UPDATE (admin) ───────────────────────────────────────────────────────────
+@router.put("/{mesa_id}", response_model=schemas.MesaOut)
+def actualizar_mesa(
     mesa_id: int,
-    estado: models.EstadoMesa,
+    data: schemas.MesaUpdate,
     db: Session = Depends(get_db),
-    usuario_actual=Depends(auth.get_usuario_actual)
+    usuario_actual: models.Usuario = Depends(get_usuario_actual)
 ):
+    if usuario_actual.rol != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden modificar mesas")
     mesa = db.query(models.Mesa).filter(models.Mesa.id == mesa_id).first()
     if not mesa:
         raise HTTPException(status_code=404, detail="Mesa no encontrada")
-    mesa.estado = estado
+
+    for campo, valor in data.model_dump(exclude_none=True).items():
+        setattr(mesa, campo, valor)
+
     db.commit()
     db.refresh(mesa)
-    return {"mensaje": f"Mesa {mesa.numero} actualizada a '{estado}'"}
+    return mesa
 
-@router.patch("/{mesa_id}/descomponer")
-def descomponer_mesa(
+# ─── PATCH estado (admin) ─────────────────────────────────────────────────────
+@router.patch("/{mesa_id}/estado", response_model=schemas.MesaOut)
+def cambiar_estado_mesa(
     mesa_id: int,
-    tablones_a_liberar: int = 1,
+    data: schemas.EstadoMesaUpdate,
     db: Session = Depends(get_db),
-    usuario_actual=Depends(auth.get_usuario_actual)
+    usuario_actual: models.Usuario = Depends(get_usuario_actual)
 ):
-    """Libera tablones de una mesa grande para redistribuir"""
-    mesa = db.query(models.Mesa).filter(
-        models.Mesa.id == mesa_id,
-        models.Mesa.es_componible == True
-    ).first()
+    if usuario_actual.rol != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden cambiar el estado")
+    mesa = db.query(models.Mesa).filter(models.Mesa.id == mesa_id).first()
     if not mesa:
-        raise HTTPException(status_code=404, detail="Mesa no encontrada o no es componible")
-
-    mesa.tablones_disponibles = min(2, mesa.tablones_disponibles + tablones_a_liberar)
-    if mesa.tablones_disponibles == 2:
-        mesa.estado = models.EstadoMesa.libre
-
+        raise HTTPException(status_code=404, detail="Mesa no encontrada")
+    estados_validos = [e.value for e in models.EstadoMesa]
+    if data.estado not in estados_validos:
+        raise HTTPException(status_code=400, detail=f"Estado inválido. Opciones: {estados_validos}")
+    mesa.estado = data.estado
     db.commit()
-    return {"mensaje": f"Mesa {mesa.numero} ahora tiene {mesa.tablones_disponibles} tablón(es) disponible(s)"}
+    db.refresh(mesa)
+    return mesa
+
+# ─── DELETE (admin) ───────────────────────────────────────────────────────────
+@router.delete("/{mesa_id}", status_code=200)
+def eliminar_mesa(
+    mesa_id: int,
+    db: Session = Depends(get_db),
+    usuario_actual: models.Usuario = Depends(get_usuario_actual)
+):
+    if usuario_actual.rol != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden eliminar mesas")
+    mesa = db.query(models.Mesa).filter(models.Mesa.id == mesa_id).first()
+    if not mesa:
+        raise HTTPException(status_code=404, detail="Mesa no encontrada")
+    db.delete(mesa)
+    db.commit()
+    return {"mensaje": f"Mesa {mesa_id} eliminada correctamente"}
