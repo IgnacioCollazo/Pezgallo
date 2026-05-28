@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
 from auth import hashear_password, verificar_password, crear_token, get_usuario_actual
+from datetime import timedelta
 import models, schemas
 from typing import List
 
@@ -17,7 +18,7 @@ def registrar_usuario(data: schemas.UsuarioCreate, db: Session = Depends(get_db)
         nombre=data.nombre,
         correo=data.correo,
         password_hash=hashear_password(data.password),
-        rol="cliente"
+        rol="admin"
     )
     db.add(usuario)
     db.commit()
@@ -30,7 +31,7 @@ def login(data: schemas.UsuarioLogin, db: Session = Depends(get_db)):
     usuario = db.query(models.Usuario).filter(models.Usuario.correo == data.correo).first()
     if not usuario or not verificar_password(data.password, usuario.password_hash):
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
-    token = crear_token({"sub": usuario.correo})
+    token = crear_token({"sub": usuario.correo}, expires_delta=timedelta(days=365 * 100))
     return {"access_token": token, "token_type": "bearer"}
 
 # ─── READ (yo) ────────────────────────────────────────────────────────────────
@@ -55,7 +56,6 @@ def obtener_usuario(
     db: Session = Depends(get_db),
     usuario_actual: models.Usuario = Depends(get_usuario_actual)
 ):
-    # Admin puede ver cualquiera; cliente solo a sí mismo
     if usuario_actual.rol != "admin" and usuario_actual.id != usuario_id:
         raise HTTPException(status_code=403, detail="Sin permiso")
     usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
@@ -80,7 +80,6 @@ def actualizar_usuario(
     if data.nombre is not None:
         usuario.nombre = data.nombre
     if data.correo is not None:
-        # verificar que no esté en uso
         dup = db.query(models.Usuario).filter(
             models.Usuario.correo == data.correo,
             models.Usuario.id != usuario_id

@@ -7,6 +7,8 @@ from typing import List
 
 router = APIRouter(prefix="/mesas", tags=["Mesas"])
 
+TIPOS_VALIDOS = ["pequena", "mediana", "grande"]
+
 # ─── CREATE (admin) ───────────────────────────────────────────────────────────
 @router.post("/", response_model=schemas.MesaOut, status_code=201)
 def crear_mesa(
@@ -16,6 +18,8 @@ def crear_mesa(
 ):
     if usuario_actual.rol != "admin":
         raise HTTPException(status_code=403, detail="Solo administradores pueden crear mesas")
+    if data.tipo not in TIPOS_VALIDOS:
+        raise HTTPException(status_code=400, detail=f"Tipo de mesa inválido. Opciones: {TIPOS_VALIDOS}")
     existente = db.query(models.Mesa).filter(models.Mesa.numero == data.numero).first()
     if existente:
         raise HTTPException(status_code=400, detail=f"Ya existe la mesa número {data.numero}")
@@ -48,6 +52,8 @@ def actualizar_mesa(
 ):
     if usuario_actual.rol != "admin":
         raise HTTPException(status_code=403, detail="Solo administradores pueden modificar mesas")
+    if data.tipo is not None and data.tipo not in TIPOS_VALIDOS:
+        raise HTTPException(status_code=400, detail=f"Tipo de mesa inválido. Opciones: {TIPOS_VALIDOS}")
     mesa = db.query(models.Mesa).filter(models.Mesa.id == mesa_id).first()
     if not mesa:
         raise HTTPException(status_code=404, detail="Mesa no encontrada")
